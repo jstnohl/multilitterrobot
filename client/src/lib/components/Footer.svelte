@@ -2,11 +2,24 @@
 	import Icon from '@iconify/svelte';
 </script>
 
-<footer class="footer footer-center bg-base-200 text-base-content rounded p-5">
-	<nav class="flex justify-center">
-		<div class="flex gap-1">
-			<div>Made with</div><div><Icon icon="mdi:heart" class="h-5 w-5 text-red-500" /> by <a href="https://github.com/engageintellect" class="link-hover link underline">@engageintellect</a> |
-			Modified by <a href="https://github.com/engageintellect" class="link-hover link underline">@jstnohl</a>
-		</div>
-	</nav>
+<footer class="footer">
+  <p>
+    Made with ❤️ by
+    <a href="YOUR_GITHUB_URL">YOUR_NAME</a>
+  </p>
+
+  <p>
+    Built with inspiration and code from:
+    <a href="https://github.com/natekspencer/pylitterbot">
+      pylitterbot
+    </a>
+    ·
+    <a href="https://github.com/engageintellect/litterbot">
+      litterbot
+    </a>
+    ·
+    <a href="https://github.com/jstnohl/multilitterrobot">
+      multilitterrobot
+    </a>
+  </p>
 </footer>
