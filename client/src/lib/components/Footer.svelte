@@ -1,11 +1,7 @@
-<script>
-	import Icon from '@iconify/svelte';
-</script>
-
 <footer class="footer">
   <p>
     Made with ❤️ by
-    <a href="YOUR_GITHUB_URL">YOUR_NAME</a>
+    <a href="https://github.com/jstnohl">Justin Ohl</a>
   </p>
 
   <p>
