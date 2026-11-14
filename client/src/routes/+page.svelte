@@ -12,9 +12,10 @@
 		await fetch(`/api/robot/${serial}/clean`, { method: 'POST' });
 	};
 
-	const toggleLight = async (serial: string, currentlyOn: boolean) => {
-		await fetch(`/api/robot/${serial}/light?on=${!currentlyOn}`, { method: 'POST' });
+	const setLightMode = async (serial: string, mode: string) => {
+    		await fetch(`/api/robot/${serial}/light?mode=${mode.toLowerCase()}`, { method: 'POST' });
 	};
+
 
 onMount(() => {
 		// Initial load
@@ -116,14 +117,19 @@ onDestroy(() => {
 									Clean
 								</button>
 
-								<button
-									class="btn btn-secondary"
-									on:click={() => toggleLight(robot.serial, robot.night_light)}
-									disabled={!robot.is_online}
+								<select
+								    class="select select-bordered select-sm"
+								    value={robot.night_light_mode ?? 'AUTO'}
+								    on:change={(e) => setLightMode(robot.serial, (e.target as HTMLSelectElement).value)}
+    									disabled={!robot.is_online}
 								>
-									<Icon icon="material-symbols:lightbulb-rounded" class="h-5 w-5" />
-									{robot.night_light ? 'Light Off' : 'Light On'}
-								</button>
+								    <option value="ON">Light: On</option>
+								    <option value="OFF">Light: Off</option>
+								    <option value="AUTO">Light: Auto</option>
+								</select>
+
+
+								
 							</div>
 						</div>
 					</div>

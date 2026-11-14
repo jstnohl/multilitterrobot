@@ -10,6 +10,9 @@ from typing import Optional
 
 load_dotenv()
 
+from pylitterbot.enums import NightLightMode
+
+
 app = FastAPI()
 
 app.add_middleware(
@@ -62,6 +65,7 @@ def serialize_robot(robot):
         "scoops_saved": data.get("scoopsSavedCount"),
         "cycles": data.get("DFINumberOfCycles"),
         "night_light": data.get("nightLightActive"),
+	"night_light_mode": data.get("nightLightMode"),
         "raw": {k: (v if isinstance(v, (dict, list, str, int, float, bool, type(None))) else str(v)) 
                 for k, v in robot.__dict__.items()},
     }
@@ -104,12 +108,16 @@ async def start_clean(serial: str):
     return {"msg": "Cleaning started", "serial": serial}
 
 @app.post("/api/robot/{serial}/light")
-async def toggle_light(serial: str, on: bool = Query(...)):
+async def set_light_mode(serial: str, mode: str = Query(...)):
     robot = get_robot(serial)
     if not robot:
         raise HTTPException(status_code=404, detail="Robot not found")
-    await robot.set_night_light(on)
-    return {"msg": f"Night light {'on' if on else 'off'}", "serial": serial}
+    modes = {"on": NightLightMode.ON, "off": NightLightMode.OFF, "auto": NightLightMode.AUTO}
+    if mode.lower() not in modes:
+        raise HTTPException(status_code=400, detail="mode must be on, off, or auto")
+    await robot.set_night_light_mode(modes[mode.lower()])
+    return {"msg": f"Night light mode set to {mode}", "serial": serial}
+
 
 @app.websocket("/api/ws")
 async def websocket_endpoint(websocket: WebSocket):
