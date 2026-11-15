@@ -6,7 +6,7 @@ All notable changes to multilitterrobot. The Kitties release landed 2026-11-14.
 
 ### Added
 - Delete a visit: a red ✕ at the end of each Recent visits row (with a confirm). Backend `DELETE /api/visits/{id}`.
-- Box column now shows the box name and serial: `LR4.1 (LR4C297161)`.
+- Box column now shows the box name and serial: `LR4.1 (LR4Cxxxxxx)`.
 
 ### Changed
 - Robot card: Clean button moved to the left, Light dropdown stays on the right.
