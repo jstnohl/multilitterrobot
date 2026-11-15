@@ -2,6 +2,7 @@
 
 Manage multiple Litter-Robots from one page — a full replacement for the Whisker app, built to be better where it can be. Live robot status, Clean and night-light controls, and **Kitties**: per-cat profiles, automatic visit detection, and weight graphs.
 
+(This screenshot will be updated once I get some graph data in my own version and I'll even scrub out my kitty names because the internet is weird)
 ![Kitty Crapper](kitty-crapper.png)
 
 ## What it does
