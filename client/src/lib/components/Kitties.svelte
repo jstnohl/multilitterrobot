@@ -22,6 +22,9 @@
 	// to hide/show that kitty on the graph (passed down to CatGraphs).
 	let hiddenCats = {};
 
+	// Which kitty's colour picker is open (the gear on a card), or null.
+	let colorPickerFor = null;
+
 	// The visits table has its own range, separate from the graph's.
 	let visitFromISO = '';
 	let visitToISO = '';
@@ -112,6 +115,24 @@
 		if (!confirm(`Remove ${name}? Their past visits stay in the log as-is.`)) return;
 		await fetch(`/api/pets?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
 		await loadAll();
+	}
+
+	async function changePetColor(pet, color) {
+		const res = await fetch('/api/pets', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				id: pet.id,
+				name: pet.name,
+				weight: pet.weight,
+				birthdate: pet.birthdate || null,
+				color
+			})
+		});
+		if (res.ok) {
+			colorPickerFor = null;
+			await loadAll();
+		}
 	}
 
 	async function reassign(visit, petName) {
@@ -314,12 +335,35 @@
 									></span>
 									<span class:line-through={hiddenCats[pet.name]}>{pet.name}</span>
 								</h3>
-								<button
-									class="btn btn-ghost btn-xs"
-									title="Remove {pet.name}"
-									on:click|stopPropagation={() => deletePet(pet.id, pet.name)}>✕</button
-								>
+								<div class="flex gap-1">
+									<button
+										class="btn btn-ghost btn-xs"
+										title="Change {pet.name}'s colour"
+										on:click|stopPropagation={() => (colorPickerFor = colorPickerFor === pet.id ? null : pet.id)}
+									>⚙</button
+									>
+									<button
+										class="btn btn-ghost btn-xs"
+										title="Remove {pet.name}"
+										on:click|stopPropagation={() => deletePet(pet.id, pet.name)}>✕</button
+									>
+								</div>
 							</div>
+							{#if colorPickerFor === pet.id}
+								<div class="flex flex-wrap items-center gap-2 mt-1" on:click|stopPropagation>
+									{#each PRESET_COLORS as c (c)}
+										<button
+											type="button"
+											class="w-6 h-6 rounded-full border"
+											class:ring-2={pet.color === c}
+											class:ring-offset-1={pet.color === c}
+											style="background: {c}"
+											title={c}
+											on:click|stopPropagation={() => changePetColor(pet, c)}
+										/>
+									{/each}
+								</div>
+							{/if}
 							<p class="text-sm opacity-70">Usual weight: {pet.weight} lbs</p>
 							<p class="text-sm opacity-70">Age: {ageLabel(pet.birthdate)}</p>
 							{#if last}

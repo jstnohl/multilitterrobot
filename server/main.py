@@ -320,7 +320,7 @@ async def shutdown_event():
 async def root():
     return {
         "msg": "litterbot multi-robot backend",
-        "version": "0.5.6",
+        "version": "0.5.8",
         "robots_connected": len(account.robots) if account else 0
     }
 
@@ -526,6 +526,20 @@ async def add_pet(pet: dict):
     pets = load_pets()
     if not re.fullmatch(r"#[0-9a-fA-F]{6}", color):
         color = PALETTE[len(pets) % len(PALETTE)]
+
+    # Update path: if an id matches an existing pet, update it in place
+    # (the colour gear on a kitty card posts the pet back with its id).
+    # Otherwise fall through and create a new pet.
+    pet_id = pet.get("id")
+    if pet_id:
+        for existing in pets:
+            if existing.get("id") == pet_id:
+                existing["name"] = name
+                existing["weight"] = weight
+                existing["birthdate"] = birthdate
+                existing["color"] = color
+                save_pets(pets)
+                return existing
 
     new_pet = {
         "id": uuid.uuid4().hex[:8],

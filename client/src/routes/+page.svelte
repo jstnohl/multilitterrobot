@@ -64,7 +64,7 @@ onDestroy(() => {
 			<div class="grid gap-6 md:grid-cols-2">
 				{#each robots as robot (robot.serial)}
 					<div
-						class="card bg-base-100 shadow-xl"
+						class="card bg-base-100 shadow-xl relative"
 						transition:fade={{ duration: 300 }}
 					>
 

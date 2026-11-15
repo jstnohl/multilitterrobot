@@ -2,6 +2,22 @@
 
 All notable changes to multilitterrobot. The Kitties release landed 2026-11-14.
 
+## [0.5.8] — 2026-11-14
+
+### Changed
+- Rebrand: the app is now **multilitterrobot** (was "Kitty Crapper") — cat icon in the header, kitty favicon, browser tab title.
+- Header: logo top-left, theme selector just right of it, footer credits moved up into a clean two-line block at the top-right. The footer is gone from the bottom of the page.
+- Removed the dead commented-out search and avatar blocks from the nav.
+
+## [0.5.7] — 2026-11-14
+
+### Added
+- Colour gear on each kitty card: change a cat's colour any time (palette swatches), no more delete-and-re-add.
+- Left accent bar on each robot card in the box's colour, matching the kitty cards — the card now reads as its graph ring.
+
+### Changed
+- Graph dots are bigger (r 9, ring 4.5) so the cat and the box read at a glance.
+
 ## [0.5.6] — 2026-11-14
 
 ### Added

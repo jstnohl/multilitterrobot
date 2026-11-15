@@ -49,6 +49,14 @@
 </script>
 
 <div class="mt-2 flex justify-start">
+	<!-- Left accent bar on the robot card — the box colour, same idea as
+	     the kitty cards' border-l-4, so the card reads as its graph ring.
+	     The card is `relative`, so this anchors to the card's left edge. -->
+	<div
+		class="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl pointer-events-none"
+		style="background: {current}"
+		aria-hidden="true"
+	></div>
 	<button
 		class="btn btn-ghost btn-xs gap-1.5"
 		title="Box colour — the ring around this box's dots on the graph"

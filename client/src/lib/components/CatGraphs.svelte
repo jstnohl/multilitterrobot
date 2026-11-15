@@ -368,10 +368,10 @@
 						<circle
 							cx={x(new Date(v.timestamp).getTime())}
 							cy={y(v.weight)}
-							r="6.3"
+							r="9"
 							fill={colorFor(v.pet || UNKNOWN)}
 							stroke={boxColor(v.serial)}
-							stroke-width="3.5"
+							stroke-width="4.5"
 							class="cursor-pointer"
 							on:mouseenter={(e) => onDotEnter(v, e)}
 							on:mousemove={moveTip}
