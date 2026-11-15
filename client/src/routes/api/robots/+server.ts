@@ -1,14 +1,10 @@
+import { json } from '@sveltejs/kit';
 import { SERVER_ENDPOINT } from '$env/static/private';
-import type { RequestHandler } from './$types';
 
-export const GET: RequestHandler = async () => {
+// Pass-through to the FastAPI backend for the robot list (names + serials).
+// GET /api/robots — used by the visits table to show "LR4.1 (LR4C297161)".
+
+export async function GET() {
 	const res = await fetch(`${SERVER_ENDPOINT}/api/robots`);
-	const data = await res.json();
-	if (!res.ok) {
-		throw new Error(data.message);
-	} else {
-		return new Response(JSON.stringify(data), {
-			headers: { 'content-type': 'application/json' }
-		});
-	}
-};
+	return json(await res.json(), { status: res.status });
+}

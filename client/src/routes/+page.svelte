@@ -3,6 +3,12 @@
 	import { fade } from 'svelte/transition';
 	import Icon from '@iconify/svelte';
 	import { PUBLIC_WEB_SOCKET_URL } from '$env/static/public';
+	import Kitties from '$lib/components/Kitties.svelte';
+	import RobotLastCat from '$lib/components/RobotLastCat.svelte';
+import RobotBoxColor from '$lib/components/RobotBoxColor.svelte';
+
+		
+	
 
 	let robots: any[] = [];
 	let ws: WebSocket;
@@ -107,7 +113,7 @@ onDestroy(() => {
 							{/if}
 
 							<!-- Actions -->
-							<div class="card-actions mt-6 justify-end gap-2">
+							<div class="mt-6 flex items-center justify-between gap-2">
 								<button
 									class="btn btn-primary"
 									on:click={() => startClean(robot.serial)}
@@ -127,7 +133,10 @@ onDestroy(() => {
 								    <option value="OFF">Light: Off</option>
 								    <option value="AUTO">Light: Auto</option>
 								</select>
-
+							</div>
+							<div class="mt-2 flex flex-wrap items-center gap-2">
+								<RobotLastCat serial={robot.serial} />
+<RobotBoxColor serial={robot.serial} />
 
 								
 							</div>
@@ -136,5 +145,6 @@ onDestroy(() => {
 				{/each}
 			</div>
 		{/if}
+		<Kitties />
 	</div>
 </div>
