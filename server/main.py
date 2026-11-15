@@ -320,7 +320,7 @@ async def shutdown_event():
 async def root():
     return {
         "msg": "litterbot multi-robot backend",
-        "version": "0.4.4",
+        "version": "0.5.6",
         "robots_connected": len(account.robots) if account else 0
     }
 
