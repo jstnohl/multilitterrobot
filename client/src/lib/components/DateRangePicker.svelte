@@ -6,6 +6,7 @@
 	export let visits = [];
 	export let fromISO = '';
 	export let toISO = '';
+	export let minSpanDays = 0;
 
 	const DAY = 86400000;
 
@@ -41,6 +42,8 @@
 	})();
 
 	$: spanDays = Math.max(0, Math.round((todayMs() - dataStartMs) / DAY));
+	// Minimum gap between the sliders, in whole days (7-day span = 6-day gap).
+	$: minGap = Math.min(Math.max(0, minSpanDays - 1), spanDays);
 
 	// First data: default to everything on record.
 	$: if (visits.length > 0 && !fromISO) {
@@ -48,8 +51,15 @@
 		toISO = isoFor(todayMs());
 	}
 
-	// Keep From <= To no matter which control moved last.
-	$: if (fromISO && toISO && fromISO > toISO) toISO = fromISO;
+	// Keep From <= To, and keep at least minSpanDays between them.
+	$: if (fromISO && toISO) {
+		if (fromISO > toISO) toISO = fromISO;
+		else if (minGap > 0 && msFor(toISO) - msFor(fromISO) < minGap * DAY) {
+			const fwd = msFor(fromISO) + minGap * DAY;
+			if (fwd <= dataStartMs + spanDays * DAY) toISO = isoFor(fwd);
+			else fromISO = isoFor(msFor(toISO) - minGap * DAY);
+		}
+	}
 
 	$: fromOffset = Math.max(
 		0,
@@ -61,13 +71,19 @@
 	);
 
 	function setFromOffset(n) {
+		n = Math.max(0, Math.min(n, toOffset - minGap));
 		fromISO = isoFor(dataStartMs + n * DAY);
 		if (fromISO > toISO) toISO = fromISO;
+		if (minGap > 0 && msFor(toISO) - msFor(fromISO) < minGap * DAY)
+			toISO = isoFor(Math.min(dataStartMs + spanDays * DAY, msFor(fromISO) + minGap * DAY));
 	}
 
 	function setToOffset(n) {
+		n = Math.min(spanDays, Math.max(n, fromOffset + minGap));
 		toISO = isoFor(dataStartMs + n * DAY);
 		if (toISO < fromISO) fromISO = toISO;
+		if (minGap > 0 && msFor(toISO) - msFor(fromISO) < minGap * DAY)
+			fromISO = isoFor(Math.max(dataStartMs, msFor(toISO) - minGap * DAY));
 	}
 
 	function setPreset(kind) {

@@ -1,13 +1,17 @@
 <script>
 	import { onMount, onDestroy } from 'svelte';
 	import CatGraphs from './CatGraphs.svelte';
+	import AvgWeightGraph from './AvgWeightGraph.svelte';
 	import DateRangePicker from './DateRangePicker.svelte';
 
 	let pets = [];
 	let visits = [];
+	let events = [];
+	let photos = {};
 	let robots = [];
 	let loading = true;
 	let error = '';
+	let resolveError = '';
 
 	let showForm = false;
 	let newName = '';
@@ -17,6 +21,9 @@
 	let addError = '';
 
 	let filterPet = 'all';
+
+	// Anomaly tab (v071): 'visits' or 'anomalies'.
+	let activeTab = 'average';
 
 	// Graph visibility, owned here — the cards ARE the legend. Click a card
 	// to hide/show that kitty on the graph (passed down to CatGraphs).
@@ -31,20 +38,26 @@
 
 	let timer;
 
+	// Anomaly tab (v071): unresolved events, newest first (GET /api/events
+	// already returns newest first).
+	$: unresolvedEvents = events.filter((e) => !e.resolution);
+
 	const PRESET_COLORS = ['#f97316', '#38bdf8', '#a78bfa', '#34d399', '#f472b6', '#facc15'];
 	const DAY = 86400000;
 
 	async function loadAll() {
 		try {
-			const [petsRes, visitsRes, robotsRes] = await Promise.all([
+			const [petsRes, visitsRes, robotsRes, eventsRes] = await Promise.all([
 				fetch('/api/pets'),
 				fetch('/api/visits?limit=500'),
-				fetch('/api/robots')
+				fetch('/api/robots'),
+				fetch('/api/events?limit=100')
 			]);
 			if (!petsRes.ok || !visitsRes.ok) throw new Error('backend request failed');
 			pets = await petsRes.json();
 			visits = await visitsRes.json();
 			robots = robotsRes.ok ? await robotsRes.json() : [];
+			events = eventsRes.ok ? await eventsRes.json() : [];
 			error = '';
 		} catch (e) {
 			error = 'Could not load kitties data — is the backend running?';
@@ -55,8 +68,89 @@
 
 	onMount(() => {
 		loadAll();
+		loadPhotos();
 		timer = setInterval(loadAll, 10000);
 	});
+
+	// Anomaly tab (v071): resolve one event. `choice` is a pet id (log it as
+	// that cat's visit), or "refill" / "maintenance" / "dismiss".
+	async function resolveEvent(ev, choice) {
+		let body;
+		if (choice === 'refill' || choice === 'maintenance' || choice === 'dismiss') {
+			body = { resolution: choice };
+		} else if (choice) {
+			body = { resolution: 'cat_visit', pet_id: choice };
+		} else {
+			return;
+		}
+		try {
+			const res = await fetch(`/api/events/${encodeURIComponent(ev.id)}/resolve`, {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify(body)
+			});
+			if (!res.ok) throw new Error('resolve failed');
+			resolveError = '';
+			// Drop the resolved event locally; a cat visit also reloads the
+			// visits (and the graph) via a full reload.
+			events = events.filter((e) => e.id !== ev.id);
+			if (body.resolution === 'cat_visit') loadAll();
+		} catch (e) {
+			resolveError = 'Could not save — try again.';
+		}
+	}
+
+	async function loadPhotos() {
+		try {
+			const res = await fetch('/api/pet-photos');
+			if (res.ok) photos = await res.json();
+		} catch (e) {
+			// no photos yet -- the cards still render, they just show 📷
+		}
+	}
+
+	async function uploadPhoto(pet, file) {
+		if (!file) return;
+		const body = new FormData();
+		body.append('file', file);
+		try {
+			const res = await fetch(`/api/pets/${encodeURIComponent(pet.id)}/photo`, {
+				method: 'POST',
+				body
+			});
+			if (!res.ok) throw new Error('upload failed');
+			const data = await res.json();
+			photos = { ...photos, [pet.id]: data.photo };
+		} catch (e) {
+			error = 'Could not save the photo — try again.';
+		}
+	}
+
+	async function removePhoto(pet) {
+		try {
+			const res = await fetch(`/api/pets/${encodeURIComponent(pet.id)}/photo`, { method: 'DELETE' });
+			if (!res.ok) throw new Error('remove failed');
+			const { [pet.id]: _, ...rest } = photos;
+			photos = rest;
+		} catch (e) {
+			error = 'Could not remove the photo — try again.';
+		}
+	}
+
+	const EVENT_LABELS = {
+		unmatched_arrival: 'Unmatched arrival',
+		ambiguous_arrival: 'Ambiguous',
+		unmatched_weight_change: 'Weight change',
+		interruption: 'Interrupted',
+		back_to_back: 'Back-to-back',
+		refill: 'Refill',
+		auto_reset: 'Auto reset',
+		two_cat_sum: 'Two cats?'
+	};
+
+	function eventLabel(ev) {
+		return EVENT_LABELS[ev.type] || ev.type;
+	}
 
 	onDestroy(() => clearInterval(timer));
 
@@ -136,7 +230,7 @@
 	}
 
 	async function reassign(visit, petName) {
-		await fetch('/api/visits', {
+		await fetch('/api/visits/reassign', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
 			body: JSON.stringify({ id: visit.id, pet: petName || null })
@@ -149,6 +243,16 @@
 		const r = robots.find((x) => x.serial === v.serial);
 		if (r && r.name && r.name !== v.serial) return `${r.name} (${v.serial})`;
 		return v.serial;
+	}
+
+	// Name only, never the serial — for the kitty cards (and tooltips).
+	// Looks the box up by serial; falls back to matching the stored
+	// `robot` value itself (old manual visits stored the serial there).
+	function boxName(v) {
+		if (!v) return '—';
+		const r = robots.find((x) => x.serial === v.serial || x.serial === v.robot);
+		if (r && r.name && r.name !== v.serial) return r.name;
+		return v.robot ?? '—';
 	}
 
 	async function deleteVisit(visit) {
@@ -170,6 +274,19 @@
 			hour: 'numeric',
 			minute: '2-digit'
 		});
+	}
+
+	// Short date for the kitty cards: "MM/DD @ h:mm AM". The full
+	// "Mon, Nov 16, 11:30 AM" string was too long on a card.
+	function fmtShort(iso) {
+		if (!iso) return '—';
+		const d = new Date(iso);
+		if (isNaN(d.getTime())) return '—';
+		let h = d.getHours();
+		const ampm = h >= 12 ? 'PM' : 'AM';
+		h = h % 12 || 12;
+		const min = String(d.getMinutes()).padStart(2, '0');
+		return `${d.getMonth() + 1}/${d.getDate()} @ ${h}:${min} ${ampm}`;
 	}
 
 	function matchLabel(v) {
@@ -221,8 +338,9 @@
 		<div class="flex flex-col lg:flex-row gap-6 items-stretch">
 			<!-- Left column: kitties stacked vertically. Click a card to
 			     hide/show that kitty on the graph. -->
-			<div class="w-full lg:w-80 shrink-0 flex flex-col gap-3">
-				<h2 class="text-2xl font-bold">Kitties</h2>
+			<div class="w-full lg:w-80 shrink-0 flex items-start gap-2">
+				<h2 class="shrink-0 text-2xl font-bold [writing-mode:vertical-rl] rotate-180">Kitties</h2>
+				<div class="min-w-0 flex-1 flex flex-col gap-3">
 
 				{#if pets.length === 0 && !showForm}
 					<!-- Empty state: no cats yet, nothing hard-coded -->
@@ -312,7 +430,7 @@
 				{#each sortedPets as pet (pet.id)}
 					{@const last = lastVisitFor(pet.name)}
 					<div
-						class="card bg-base-100 shadow border-l-4 cursor-pointer select-none"
+						class="card relative bg-base-100 shadow border-l-4 cursor-pointer select-none"
 						class:opacity-40={hiddenCats[pet.name]}
 						style="border-left-color: {pet.color || '#888'}"
 						role="button"
@@ -330,7 +448,7 @@
 							<div class="flex justify-between items-start">
 								<h3 class="card-title">
 									<span
-										class="inline-block w-3 h-3 rounded-full"
+										class="inline-block w-3 h-3 rounded"
 										style="background: {pet.color || '#888'}"
 									></span>
 									<span class:line-through={hiddenCats[pet.name]}>{pet.name}</span>
@@ -364,19 +482,33 @@
 									{/each}
 								</div>
 							{/if}
-							<p class="text-sm opacity-70">Usual weight: {pet.weight} lbs</p>
+							<p class="text-sm opacity-70">Average weight: {pet.average_weight ?? pet.weight} lbs</p>
 							<p class="text-sm opacity-70">Age: {ageLabel(pet.birthdate)}</p>
 							{#if last}
-								<p>
+								<p class="relative z-10">
 									Last weight: <strong>{last.weight != null ? last.weight + ' lbs' : '—'}</strong>
 								</p>
-								<p>Last visit: {fmtTime(last.timestamp)}</p>
-								<p>Box used: {last.robot}</p>
+								<p class="relative z-10">Last visit: {fmtShort(last.timestamp)}</p>
+								<p class="relative z-10">Box used: {boxName(last)}</p>
 							{:else}
-								<p class="text-sm opacity-70">No visits logged yet.</p>
+								<p class="text-sm opacity-70 relative z-10">No visits logged yet.</p>
 							{/if}
 							{#if hiddenCats[pet.name]}
-								<p><span class="badge badge-ghost badge-sm">Hidden from graph</span></p>
+								<p class="relative z-10"><span class="badge badge-ghost badge-sm">Hidden from graph</span></p>
+							{/if}
+							{#if photos[pet.id]}
+								<div class="absolute bottom-3 right-3">
+									<label class="cursor-pointer" title="Change {pet.name}'s photo" on:click|stopPropagation>
+										<img src="/api/pets/{pet.id}/photo" alt="{pet.name}" class="h-16 w-16 rounded-full object-cover ring-2 ring-base-300" />
+										<input type="file" accept="image/*" class="hidden" on:change={(e) => uploadPhoto(pet, e.target.files[0])} />
+									</label>
+									<button class="btn btn-circle btn-xs absolute -top-1 -right-1" title="Remove {pet.name}'s photo" on:click|stopPropagation={() => removePhoto(pet)}>✕</button>
+								</div>
+							{:else}
+								<label class="absolute bottom-3 right-3 btn btn-circle btn-sm btn-ghost cursor-pointer" title="Add a photo of {pet.name}" on:click|stopPropagation>
+									📷
+									<input type="file" accept="image/*" class="hidden" on:change={(e) => uploadPhoto(pet, e.target.files[0])} />
+								</label>
 							{/if}
 						</div>
 					</div>
@@ -398,6 +530,7 @@
 				<p class="text-xs opacity-50">
 					Click a kitty to hide or show them on the graph.
 				</p>
+				</div>
 			</div>
 
 			<!-- Right: the graph, using the horizontal space -->
@@ -410,18 +543,30 @@
 		<div class="card bg-base-100 shadow mt-6">
 			<div class="card-body">
 				<div class="flex flex-wrap justify-between items-center gap-2 mb-2">
-					<h3 class="font-bold">Recent visits</h3>
-					<label class="flex items-center gap-2 text-sm">
-						Show
-						<select class="select select-bordered select-sm" bind:value={filterPet}>
-							<option value="all">All kitties</option>
-							{#each pets as pet (pet.id)}
-								<option value={pet.name}>{pet.name}</option>
-							{/each}
-						</select>
-					</label>
+					<div role="tablist" class="tabs tabs-boxed">
+						<a role="tab" class="tab" class:tab-active={activeTab === 'average'} on:click={() => (activeTab = 'average')}>Average Weight</a>
+						<a role="tab" class="tab" class:tab-active={activeTab === 'visits'} on:click={() => (activeTab = 'visits')}>Recent visits</a>
+						<a role="tab" class="tab" class:tab-active={activeTab === 'anomalies'} on:click={() => (activeTab = 'anomalies')}>Anomalies{#if unresolvedEvents.length > 0} ({unresolvedEvents.length}){/if}</a>
+					</div>
+					{#if activeTab === 'visits'}
+						<label class="flex items-center gap-2 text-sm">
+							Show
+							<select class="select select-bordered select-sm" bind:value={filterPet}>
+								<option value="all">All kitties</option>
+								{#each pets as pet (pet.id)}
+									<option value={pet.name}>{pet.name}</option>
+								{/each}
+							</select>
+						</label>
+					{/if}
 				</div>
 
+				<!-- Average Weight tab: its own block so the visits/anomalies chain stays untouched. -->
+				{#if activeTab === 'average'}
+					<AvgWeightGraph {hiddenCats} />
+				{/if}
+
+				{#if activeTab === 'visits'}
 				<DateRangePicker bind:fromISO={visitFromISO} bind:toISO={visitToISO} {visits} />
 
 				{#if visits.length === 0}
@@ -446,6 +591,7 @@
 									<th>Kitty</th>
 									<th>Weight</th>
 									<th>Box</th>
+									<th>Type</th>
 									<th>Correct it</th>
 									<th>Delete</th>
 								</tr>
@@ -463,6 +609,21 @@
 										</td>
 										<td>{v.weight != null ? v.weight + ' lbs' : '—'}</td>
 										<td>{boxLabel(v)}</td>
+										<td>
+											<select
+												class="select select-bordered select-xs"
+												value={v.type ?? ''}
+												on:change={async (e) => {
+													const t = e.target.value || null;
+													const r = await fetch(`/api/visits/${v.id}/type`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: t }) });
+													if (r.ok) { v.type = t; visits = visits; }
+												}}
+											>
+												<option value="">—</option>
+												<option value="pee">Pee</option>
+												<option value="poop">Poop</option>
+											</select>
+										</td>
 										<td>
 											<select
 												class="select select-bordered select-xs"
@@ -487,6 +648,52 @@
 						</table>
 					</div>
 				{/if}
+			{:else if activeTab === 'anomalies'}
+				{#if resolveError}
+					<p class="text-error text-sm mb-2">{resolveError}</p>
+				{/if}
+				{#if unresolvedEvents.length === 0}
+					<p class="text-sm opacity-70">No anomalies — every logged event is resolved. New ones land here as the boxes cycle.</p>
+				{:else}
+					<p class="text-xs opacity-60 mb-2">{unresolvedEvents.length} unresolved event{unresolvedEvents.length === 1 ? '' : 's'} — pick a cat to log it as their visit, or mark it refill / maintenance / dismiss.</p>
+					<div class="overflow-x-auto">
+						<table class="table table-sm">
+							<thead>
+								<tr>
+									<th>When</th>
+									<th>Weight</th>
+									<th>Box</th>
+									<th>Type</th>
+									<th>Note</th>
+									<th>Resolve</th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each unresolvedEvents as ev (ev.id)}
+									<tr>
+										<td>{fmtTime(ev.timestamp)}</td>
+										<td>{ev.weight != null ? ev.weight + ' lbs' : '—'}</td>
+										<td>{ev.robot || ev.serial}</td>
+										<td>{eventLabel(ev)}</td>
+										<td class="text-xs opacity-70">{ev.note || ''}</td>
+										<td>
+											<select class="select select-bordered select-xs" value="" on:change={(e) => resolveEvent(ev, e.target.value)}>
+												<option value="" disabled>Resolve…</option>
+												{#each pets as pet (pet.id)}
+													<option value={pet.id}>{pet.name} (visit)</option>
+												{/each}
+												<option value="refill">Refill</option>
+												<option value="maintenance">Maintenance</option>
+												<option value="dismiss">Dismiss</option>
+											</select>
+										</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					</div>
+				{/if}
+			{/if}
 			</div>
 		</div>
 	{/if}

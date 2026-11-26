@@ -2,6 +2,66 @@
 
 All notable changes to multilitterrobot. The Kitties release landed 2026-11-14.
 
+## [0.6.8] — 2026-11-16
+
+### Added
+- **Visits and the stuck-clean auto-reset now work with no page open.** Detection and the auto-reset used to live inside the page's live connection, so nothing was logged and nothing reset when no page was open — and two pages open at once could log the same visit twice. Both now run in a single background task that starts with the backend and runs forever. The page's connection only displays state. A box stuck in `ROBOT_CLEAN` for over 10 minutes still resets itself, and a missed visit is still recovered from the scale weight.
+
+- **Weight change mid-detection now logs a new event.** A second cat stepping on while the first is still (or just) there used to be swallowed — one event per arrival, weight changes ignored. Now, if the scale moves more than 0.5 lb from the open event's weight while detection is still on, the new weight is matched and logged as its own visit.
+
+## [0.6.7] — 2026-11-16
+
+### Added
+- **A box stuck in ROBOT_CLEAN now resets itself.** A normal clean cycle takes ~2-3 minutes; if a box sits in `ROBOT_CLEAN` longer than 10 minutes it is stuck, so the backend resets it automatically and it returns to READY. If no visit was logged for that cycle (the arrival detection was missed, e.g. no page was open when the cat used it), the visit is recovered from the scale weight first, so it still lands on the graph. A visit recorded within the last hour is the same cycle already logged at arrival and is never logged twice.
+
+## [0.6.6] — 2026-11-16
+
+### Changed
+- **Kitty cards show a short date for the last visit** — "MM/DD @ h:mm AM" (e.g. "11/16 @ 11:30 AM") instead of the full "Mon, Nov 16, 11:30 AM" string, which was too long on a card. The Recent visits table keeps the full date.
+
+## [0.6.5] — 2026-11-16
+
+### Changed
+- **Robot cards show the name and serial on one line** — name big and bold, serial small beside it, instead of stacked on two lines.
+- **Section titles are vertical, on the left** — "Litter Robots" and "Kitties" are rotated 90° counter-clockwise and sit to the left of their sections, saving vertical space.
+- **Waste drawer bar moved** — it now sits between the Cat Weight / Scoops Saved stats and the Clean / Reset / Light buttons.
+- **Box colour picker moved to the bottom-right** of each robot card, cleanly separated from the "Last used by" field.
+- **Graph timeline moved to the bottom** — the date-range controls sit below the graph, so the graph is what you see first on load.
+- **Box names everywhere, serials only where they belong** — kitty cards ("Box used") and graph tooltips now show the box name, never the serial. The serial appears only on the robot card header and in the Recent visits table.
+- **Dots are rounded squares** — graph dots and kitty-card dots are squares with rounded corners instead of circles, matching the other squares in the app.
+
+## [0.6.4] — 2026-11-15
+
+### Fixed
+- **Repeat visits by the same cat now log.** The detector only logged a visit when the matched cat differed from the box's last cat, so Sally's 2:17 PM return to LR4.1 was skipped — the last cat was already Sally from 5:06 AM. Detection is now gated on the robot status: a visit logs when a cat arrives (status enters `ROBOT_CAT_DETECT` / `ROBOT_CAT_DETECT_DELAY`) and the weight confidently matches, even if it's the same cat as last time. A per-robot arrival flag prevents a sticky weight reading from re-logging while the cat is still there, and it clears when the status leaves the cat-present states.
+
+## [0.6.3] — 2026-11-14
+
+### Fixed
+- **Visit matching tolerance tightened from ±0.75 lb to ±0.5 lb.** Sally (6.6 lb) and Reba (7.6 lb) are only 1.0 lb apart, so a 7.05 lb reading fell inside both cats' windows and was dropped as ambiguous — Sally's 9:17 PM visit never logged and her average never moved. At ±0.5 lb, 7.05 is in range for Sally only (0.45) and out of range for Reba (0.55), so it matches Sally confidently.
+
+## [0.6.2] — 2026-11-14
+
+### Fixed
+- **Litter Level stat now shows the real globe litter state** (Optimal / Low / Refill / Empty / Overfill) instead of repeating the waste-drawer percentage. The drawer percentage lives on its own field now (`drawer_level`), so the top bar and the stat box no longer show the same number.
+- **Top bar relabeled "Waste drawer"** (was "Drawer") so it's unambiguous.
+
+## [0.6.1] — 2026-11-14
+
+### Added
+- **Drawer level bar at the top of each robot card.** A color-coded progress bar (green under 50%, yellow 50–80%, red over 80%) shows the waste drawer fullness at a glance, with the percentage next to it. Labeled "Drawer" to make clear it's the waste drawer, not the litter in the globe.
+- **In-app Reset button on each robot card.** Sits between Clean and Light; sends the LR4's reset command (the in-app equivalent of the physical RESET button) to re-zero the sensors and reset the drawer gauge after emptying, so you don't have to get up and press the button on the unit.
+
+## [0.6.0] — 2026-11-14
+
+### Changed
+- **Kitty cards now show "Average weight" instead of "Usual weight".** The average is the input weight plus every automatic scale-measured visit weight for that cat, divided by the count (rounded to 1 decimal). Manual visits are excluded (they just repeat the input weight). A cat with no automatic visits yet shows its input weight. Matching still uses the input weight to identify the cat; the average is display-only, so you can see drift at a glance (e.g. Cheetoh entered at 8.4 lb, measured 8.7 lb, average 8.6 lb).
+
+## [0.5.9] — 2026-11-14
+
+### Fixed
+- **Last-used now updates when a cat uses a box.** Visit detection no longer waits on the cleaning cycle count (`DFINumberOfCycles` never ticks on the LR4, so no automatic visit had ever logged and "Last used by" stayed stale). It now matches the live scale weight against the known cats: when it confidently matches a cat different from the box's last cat, that's a new visit — timestamped, logged, and the last cat updates automatically. (Cheetoh's LR4.1 visit, ~20 min before the fix, was the trigger: weight read 8.7 lb but last-used still showed Reba from 5:49 PM.)
+
 ## [0.5.8] — 2026-11-14
 
 ### Changed

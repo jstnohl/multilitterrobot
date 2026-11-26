@@ -1,0 +1,23 @@
+[
+  {
+    "id": "4f929c5b",
+    "name": "Cheetoh",
+    "weight": 8.4,
+    "birthdate": "2020-05-01",
+    "color": "#f97316"
+  },
+  {
+    "id": "19e7d75c",
+    "name": "Sally",
+    "weight": 6.6,
+    "birthdate": "2023-05-01",
+    "color": "#facc15"
+  },
+  {
+    "id": "29640297",
+    "name": "Reba",
+    "weight": 7.6,
+    "birthdate": "2023-08-01",
+    "color": "#34d399"
+  }
+]

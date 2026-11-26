@@ -9,6 +9,7 @@
 	let pets = [];
 	let visits = [];
 	let boxColors = {};
+	let robots = [];
 	let loading = true;
 	let error = '';
 
@@ -27,15 +28,17 @@
 
 	async function loadAll() {
 		try {
-			const [petsRes, visitsRes, colorsRes] = await Promise.all([
+			const [petsRes, visitsRes, colorsRes, robotsRes] = await Promise.all([
 				fetch('/api/pets'),
 				fetch('/api/visits?limit=500'),
-				fetch('/api/box-colors')
+				fetch('/api/box-colors'),
+				fetch('/api/robots')
 			]);
 			if (!petsRes.ok || !visitsRes.ok) throw new Error('backend request failed');
 			pets = await petsRes.json();
 			visits = await visitsRes.json();
 			if (colorsRes.ok) boxColors = await colorsRes.json();
+			if (robotsRes.ok) robots = await robotsRes.json();
 			error = '';
 		} catch (e) {
 			error = 'Could not load graph data — is the backend running?';
@@ -89,6 +92,16 @@
 		return boxColors[serial] || '#888';
 	}
 
+	// Box name only, never the serial — for the hover tooltip. Looks the
+	// box up by serial; falls back to matching the stored `robot` value
+	// itself (old manual visits stored the serial there).
+	function boxName(v) {
+		if (!v) return '—';
+		const r = robots.find((x) => x.serial === v.serial || x.serial === v.robot);
+		if (r && r.name && r.name !== v.serial) return r.name;
+		return v.robot ?? '—';
+	}
+
 	// Hover tooltip state — follows the mouse, shows who / box / weight /
 	// time as real text (replaces the slow native <title> tooltip).
 	let hovered = null;
@@ -100,8 +113,23 @@
 		return v.pet || (v.ambiguous && v.ambiguous.length ? v.ambiguous.join(' or ') : UNKNOWN);
 	}
 
+	// Visits plotted within a few pixels of a dot -- overlapping dots hide
+	// each other (Sally 6:34 vs 6:56 AM, 22 min / 0.04 lb apart), so the
+	// tooltip lists every visit at that spot instead of only the topmost.
+	function nearbyVisits(v) {
+		const px = x(new Date(v.timestamp).getTime());
+		const py = y(v.weight);
+		return plotted
+			.filter((o) => {
+				const ox = x(new Date(o.timestamp).getTime());
+				const oy = y(o.weight);
+				return Math.abs(ox - px) <= 12 && Math.abs(oy - py) <= 12;
+			})
+			.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+	}
+
 	function onDotEnter(v, e) {
-		hovered = v;
+		hovered = nearbyVisits(v);
 		moveTip(e);
 	}
 
@@ -128,8 +156,19 @@
 		return !isNaN(t) && t >= fromMs && t < toMs;
 	});
 
+	// v071: the main graph shows only CONFIDENT cat visits -- a visit
+	// with no cat (or "Unknown") is an anomaly and lives in the anomaly
+	// tab, not here. The Y scale still derives from `ranged`, so the
+	// scale does not jump when anomalies appear.
+	let typeFilter = 'all'; // 'all' | 'pee' | 'poop' (v078)
+
 	$: plotted = ranged.filter(
-		(v) => v.weight != null && !(v.pet ? hiddenCats[v.pet] : hiddenCats[UNKNOWN])
+		(v) =>
+			v.weight != null &&
+			v.pet != null &&
+			v.pet !== UNKNOWN &&
+			!(v.pet ? hiddenCats[v.pet] : hiddenCats[UNKNOWN]) &&
+			(typeFilter === 'all' || v.type === typeFilter)
 	);
 
 	$: pointsByCat = (() => {
@@ -192,7 +231,9 @@
 		const lo = ws.length ? Math.min(...ws) - 0.25 : 0;
 		const hi = ws.length ? Math.max(...ws) + 0.25 : 10;
 		const step = hi - lo <= 4 ? 0.5 : hi - lo <= 12 ? 1 : 2;
-		const firstTick = Math.ceil(lo / step) * step;
+		// Floor, not ceil: the lowest dot needs a labelled gridline at or
+		// below it (Sally's 6.3 lb visit had none -- first tick was 6.5).
+		const firstTick = Math.floor(lo / step) * step;
 		const ticks = [];
 		for (let tick = firstTick; tick <= hi + 1e-9; tick += step) {
 			ticks.push(Math.round(tick * 100) / 100);
@@ -249,12 +290,15 @@
 					</label>
 					<label class="flex items-center gap-1.5 text-sm cursor-pointer">
 						<input type="checkbox" class="toggle toggle-sm" bind:checked={showFill} />
-						Fill
+					Fill
 					</label>
+					<div class="join">
+						<button type="button" class="btn btn-xs join-item" class:btn-primary={typeFilter === 'all'} on:click={() => (typeFilter = 'all')}>All</button>
+						<button type="button" class="btn btn-xs join-item" class:btn-primary={typeFilter === 'poop'} on:click={() => (typeFilter = 'poop')}>Poops</button>
+						<button type="button" class="btn btn-xs join-item" class:btn-primary={typeFilter === 'pee'} on:click={() => (typeFilter = 'pee')}>Pee</button>
+					</div>
 				</div>
 			</div>
-
-			<DateRangePicker bind:fromISO bind:toISO {visits} />
 
 			{#if loading}
 				<p>Loading graphs…</p>
@@ -272,8 +316,8 @@
 				</p>
 			{:else if plotted.length === 0}
 				<p class="text-sm opacity-70 py-8 text-center">
-					Everything in this range is hidden — click a kitty card to show them
-					again, or widen the range.
+					Nothing to show in this range — click a kitty card to show hidden cats,
+					widen the range, or switch the All / Poops / Pee filter.
 				</p>
 			{:else}
 				<div class="relative flex-1 min-h-[280px] flex" bind:this={wrapEl} use:observeSize>
@@ -365,10 +409,28 @@
 
 					<!-- Dots: fill = kitty, ring = box -->
 					{#each plotted as v (v.id)}
-						<circle
-							cx={x(new Date(v.timestamp).getTime())}
-							cy={y(v.weight)}
-							r="9"
+						<!-- A second visit hides under this dot: mark the stack
+						     with a faint outer outline so it is visible at a glance. -->
+						{#if nearbyVisits(v).length > 1}
+							<rect
+								x={x(new Date(v.timestamp).getTime()) - 12}
+								y={y(v.weight) - 12}
+								width="24"
+								height="24"
+								rx="6"
+								fill="none"
+								stroke="currentColor"
+								stroke-opacity="0.35"
+								stroke-width="1.5"
+								class="pointer-events-none"
+							/>
+						{/if}
+						<rect
+							x={x(new Date(v.timestamp).getTime()) - 9}
+							y={y(v.weight) - 9}
+							width="18"
+							height="18"
+							rx="4"
 							fill={colorFor(v.pet || UNKNOWN)}
 							stroke={boxColor(v.serial)}
 							stroke-width="4.5"
@@ -385,10 +447,10 @@
 						class="absolute z-10 pointer-events-none bg-neutral text-neutral-content text-xs rounded-lg shadow-lg px-3 py-2"
 						style="left: {hoverX}px; top: {hoverY}px;"
 					>
-						<p><strong>{whoFor(hovered)}</strong></p>
-						<p>Box: {hovered.robot}</p>
-						<p>Weight: {hovered.weight} lbs</p>
-						<p>{fmtTime(hovered.timestamp)}</p>
+						{#each hovered as h}
+							<p><strong>{whoFor(h)}</strong> · {h.weight} lbs</p>
+							<p>Box: {boxName(h)} · {fmtTime(h.timestamp)}</p>
+						{/each}
 					</div>
 				{/if}
 				</div>
@@ -397,6 +459,10 @@
 					plotted · {fmtDay(fromMs)} – {fmtDay(msFor(toISO))}
 				</p>
 			{/if}
+
+			<div class="mt-3">
+				<DateRangePicker bind:fromISO bind:toISO {visits} />
+			</div>
 		</div>
 	</div>
 </section>

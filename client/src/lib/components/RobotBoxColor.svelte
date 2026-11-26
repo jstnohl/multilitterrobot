@@ -5,11 +5,12 @@
 	// cat, the ring is the box; the trend line stays the cat's colour).
 	// Set from the gear on the robot card.
 	export let serial;
+	export let inline = false;
 
 	// Deliberately a different range from kitty colours (bright orange /
 	// sky / violet / emerald / pink / yellow) — dark, muted tones, so a
-	// ring never looks like a cat.
-	const BOX_PALETTE = ['#1e40af', '#dc2626', '#065f46', '#92400e', '#4c1d95', '#334155'];
+	// ring never looks like a cat. Black and white match the physical boxes.
+	const BOX_PALETTE = ['#1e40af', '#dc2626', '#065f46', '#92400e', '#4c1d95', '#334155', '#000000', '#FFFFFF'];
 
 	let colors = {};
 	let open = false;
@@ -57,16 +58,18 @@
 		style="background: {current}"
 		aria-hidden="true"
 	></div>
+	{#if !inline}
 	<button
 		class="btn btn-ghost btn-xs gap-1.5"
 		title="Box colour — the ring around this box's dots on the graph"
 		on:click={() => (open = !open)}
 	>
-		<span class="inline-block w-3 h-3 rounded-full" style="background: {current}"></span>
+		<span class="inline-block w-3 h-3 rounded-full border" style="background: {current}"></span>
 		⚙
 	</button>
-	{#if open}
-		<div class="flex flex-wrap items-center gap-2 mt-1">
+	{/if}
+	{#if open || inline}
+		<div class="flex flex-wrap items-center gap-2 mt-1" class:w-full={inline}>
 			{#each BOX_PALETTE as c (c)}
 				<button
 					type="button"

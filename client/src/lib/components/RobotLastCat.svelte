@@ -6,6 +6,7 @@
 	// itself on every confident match, and updates it whenever you correct
 	// a visit — so it keeps dialling itself in.
 	export let serial;
+	export let compact = false; // Dropdown only -- the card row supplies the "Last weight ... by" text.
 
 	let pets = [];
 	let current = null; // {pet_id, pet_name, updated_at}
@@ -52,14 +53,16 @@
 </script>
 
 <div class="flex flex-wrap items-center gap-2 text-sm">
-	<span class="opacity-70">Last used by:</span>
-	{#if current?.pet_name}
-		<strong>{current.pet_name}</strong>
-		{#if current.updated_at}
-			<span class="opacity-60">· {fmtClock(current.updated_at)}</span>
+	{#if !compact}
+		<span class="opacity-70">Last used by:</span>
+		{#if current?.pet_name}
+			<strong>{current.pet_name}</strong>
+			{#if current.updated_at}
+				<span class="opacity-60">· {fmtClock(current.updated_at)}</span>
+			{/if}
+		{:else}
+			<span class="opacity-60">not set</span>
 		{/if}
-	{:else}
-		<span class="opacity-60">not set</span>
 	{/if}
 	<select
 		class="select select-bordered select-xs"
