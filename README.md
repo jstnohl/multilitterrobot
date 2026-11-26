@@ -2,7 +2,7 @@
 
 Manage multiple Litter-Robots from one open-source web app — a full replacement for the Whisker app, built for households with more than one cat and more than one box.
 
-![Dashboard](kitty-crapper.png)
+![Dashboard](kitty-crapper.png?v=2)
 
 ## What it does
 
